@@ -15,7 +15,7 @@ import Data.Function                            (on)
 import Data.List                                (isSuffixOf,tails)
 import System.Console.CmdArgs
 import System.Directory
-import System.Exit
+import System.FilePath                          ((</>), (<.>), dropExtension)
 
 -- type of sequences annotated with source file information
 deriving instance Data Linkage
@@ -45,12 +45,6 @@ infinity  = 1/0.0
 
 gapPen :: (Int, Int)
 gapPen  = (-10,-2)
-
-trim :: FilePath -> FilePath
-trim  = reverse . drop 4 . reverse
-
-untrim :: FilePath -> FilePath
-untrim  = (++ ".faa")
 
 d :: Double -> Sequence a -> Sequence a -> Double
 d minFrac x y
@@ -93,7 +87,7 @@ main  = do
   mapM_ verifyNonExistent [clustFileName, matrixFileName]
 
   -- get the input files
-  fs <- map trim . filter (".faa" `isSuffixOf`)
+  fs <- map dropExtension . filter (".faa" `isSuffixOf`)
           <$> getDirectoryContents dataDir
   when (null fs) $ do
     error $ "directory " ++ dataDir ++ " contains no .faa input files"
@@ -109,11 +103,12 @@ main  = do
   
 
   -- run the main computation
-  seqss <- mapM (\f -> zipWith (AnnSeq f) [1..] <$> F.readFasta (untrim f)) fs
-
+  seqss <- mapM (\f -> zipWith (AnnSeq f) [1..]
+                         <$> F.readFasta (dataDir </> f <.> ".faa"))
+                fs
   let clusters = zip [1::Int ..] $
           C.dendrogram linkage (concat seqss) (d minFrac `on` seqData)
         `cutAt` (1.0 / fromIntegral minScore)
 
-  writeFile (clustersOutput clusters) clustFileName
-  writeFile (matrixOutput clusters fs) matrixFileName
+  writeFile clustFileName  (clustersOutput clusters)
+  writeFile matrixFileName (matrixOutput clusters fs)
